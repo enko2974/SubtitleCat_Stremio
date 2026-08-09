@@ -3,37 +3,50 @@ import { handle } from "hono/vercel";
 
 const app = new Hono().basePath("/api");
 
-// Дефиниција за поддржани јазици (вклучувајќи српски латиница - sr)
-const LANGUAGES: Record<string, string> = {
-  sr: "Serbian (Latin)",
-  en: "English",
-  mk: "Macedonian",
-  bs: "Bosnian",
-  hr: "Croatian",
-  sq: "Albanian",
-  bg: "Bulgarian",
-  ro: "Romanian",
-  sl: "Slovenian",
-  de: "German",
-  fr: "French",
-  es: "Spanish",
-  it: "Italian",
-  ru: "Russian",
-  tr: "Turkish",
-};
+// Дефинирање на српски (латиница) како главен јазик за SubtitleCat
+const DEFAULT_LANG = "sr";
 
 app.get("/manifest.json", (c) => {
+  const lang = c.req.query("lang") || DEFAULT_LANG;
   return c.json({
     id: "org.stremio.subtitlecat",
     version: "1.0.0",
-    name: "SubtitleCat Subtitles",
-    description: "SubtitleCat provider with Serbian (Latin) translation support for Stremio",
+    name: `SubtitleCat (${lang.toUpperCase()})`,
+    description: "SubtitleCat subtitles provider with Serbian (Latin) support",
     resources: ["subtitles"],
     types: ["movie", "series"],
     idPrefixes: ["tt"],
     catalogs: [],
   });
 });
+
+app.get("/subtitles/:type/:id/:extra?.json", async (c) => {
+  const { type, id } = c.req.param();
+  const lang = c.req.query("lang") || DEFAULT_LANG;
+
+  try {
+    // Влечење на преводот за соодветниот филм/серија од SubtitleCat за српски (sr)
+    const subUrl = `https://subtitle-cat.com/subs/${id}/${lang}.vtt`;
+    
+    return c.json({
+      subtitles: [
+        {
+          id: `${id}-${lang}`,
+          url: subUrl,
+          lang: "Serbian (Latin)",
+        },
+      ],
+    });
+  } catch (e) {
+    return c.json({ subtitles: [] });
+  }
+});
+
+export const config = {
+  runtime: "edge",
+};
+
+export default handle(app);
 
 app.get("/subtitles/:type/:id/:extra?.json", async (c) => {
   const { type, id } = c.req.param();
