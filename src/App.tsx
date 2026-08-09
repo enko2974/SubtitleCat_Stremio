@@ -1,39 +1,58 @@
-import { useState, useEffect, ReactNode } from 'react';
-import { Download, ExternalLink, Info, ShieldCheck, Cat } from 'lucide-react';
-import { motion } from 'motion/react';
+import { useState } from "react";
+
+const LANGUAGES = [
+  { code: "sr", name: "Srpski (Latinica)" },
+  { code: "mk", name: "Makedonski" },
+  { code: "bs", name: "Bosanski" },
+  { code: "hr", name: "Hrvatski" },
+  { code: "en", name: "English" },
+  { code: "sq", name: "Shqip" },
+  { code: "bg", name: "Bulgarian" },
+  { code: "de", name: "Deutsch" },
+];
 
 export default function App() {
-  const [manifestUrl, setManifestUrl] = useState('');
-  const [isProtectedUrl, setIsProtectedUrl] = useState(false);
-  const [isReady, setIsReady] = useState<boolean | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string | null>(null);
+  const [selectedLang, setSelectedLang] = useState("sr");
+  const host = typeof window !== "undefined" ? window.location.host : "";
+  const protocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "stremio:" : "http:";
 
-  useEffect(() => {
-    const origin = window.location.origin;
-    // Use manifest.json as the primary path
-    const url = origin + '/manifest.json';
-    setIsProtectedUrl(origin.includes('ais-dev') || origin.includes('ais-pre'));
-    // Use stremio:// protocol for the Install button - remove query param for stability
-    const stremioUrl = url.replace(/^https?/, 'stremio');
-    setManifestUrl(stremioUrl);
+  const manifestUrl = `${protocol}//${host}/api/manifest.json?lang=${selectedLang}`;
 
-    fetch('/manifest.json')
-      .then(r => setIsReady(r.ok))
-      .catch(() => setIsReady(false));
-  }, []);
+  return (
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4">
+      <div className="max-w-md w-full bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 text-center">
+        <h1 className="text-3xl font-bold mb-2">SubtitleCat Stremio</h1>
+        <p className="text-slate-400 mb-6">
+          Преводи за Stremio со поддршка за српски латиница
+        </p>
 
-  const handleInstall = () => {
-    window.location.href = manifestUrl;
-  };
+        <div className="mb-6 text-left">
+          <label className="block text-sm font-medium text-slate-300 mb-2">
+            Избери јазик за превод:
+          </label>
+          <select
+            value={selectedLang}
+            onChange={(e) => setSelectedLang(e.target.value)}
+            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            {LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
-  const testManifest = async () => {
-    try {
-      const res = await fetch('/manifest.json?v=' + Date.now());
-      const text = await res.text();
-      const headers: Record<string, string> = {};
-      res.headers.forEach((v, k) => { headers[k] = v; });
-      
-      setDebugInfo(JSON.stringify({
+        <a
+          href={manifestUrl}
+          className="inline-block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 shadow-lg"
+        >
+          Инсталирај во Stremio
+        </a>
+      </div>
+    </div>
+  );
+}
         status: res.status,
         statusText: res.statusText,
         headers,
