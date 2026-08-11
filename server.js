@@ -57,6 +57,7 @@ ${subtitleText}`;
 }
 
 // Пребарување и враќање на линкови до Stremio
+// Пребарување и враќање на линкови до Stremio
 app.get('/subtitles/:type/:id.json', async (req, res) => {
   try {
     const id = req.params.id;
@@ -70,7 +71,7 @@ app.get('/subtitles/:type/:id.json', async (req, res) => {
     const links = [];
     while ((match = regex.exec(html)) !== null) {
       const fullUrl = new URL(match[1], SUBTITLECAT).href;
-      if (!links.includes(fullUrl)) links.push(fullUrl);
+      if (!links.includes(fullUrl)) links.path ? links.path.push(fullUrl) : links.push(fullUrl);
       if (links.length >= 5) break;
     }
 
