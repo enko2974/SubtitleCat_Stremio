@@ -7,9 +7,11 @@ const PORT = Number(process.env.PORT) || 10000;
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const SUBTITLECAT = 'https://subtitlecat.com';
 
+// Кеш за веќе преведени титлови за да не чека телефонот повторно
+const translationCache = new Map();
+
 app.disable('x-powered-by');
 
-// Отворени CORS заглавија за сите Android/TV уреди
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -25,7 +27,7 @@ app.get('/', (req, res) => {
 app.get('/manifest.json', (req, res) => {
   res.json({
     id: 'org.subtitlecat.serbianlatin.ai',
-    version: '4.0.0',
+    version: '4.1.0',
     name: 'SubtitleCat Serbian (Gemini AI)',
     description: 'Automatic SubtitleCat to Serbian Latin translation via Gemini AI',
     resources: ['subtitles'],
@@ -34,7 +36,6 @@ app.get('/manifest.json', (req, res) => {
   });
 });
 
-// Оптимизирана функција за превод на српска латиница
 async function translateToSerbian(subtitleText) {
   try {
     const prompt = `Преведи го или прилагоди го следниов текст (SRT/VTT формат) исклучиво на СРПСКА ЛАТИНИЦА (со користење на карактерите č, ć, ž, š, đ).
@@ -60,7 +61,7 @@ ${subtitleText}`;
 app.get('/subtitles/:type/:id.json', async (req, res) => {
   try {
     const { type, id } = req.params;
-    console.log(`ANDROID/WEB REQUEST: ${type} ${id}`);
+    console.log(`REQUEST FROM DEVICE: ${type} ${id}`);
 
     const metaUrl = `https://v3-cinemeta.strem.io/meta/${type}/${id}.json`;
     const metaRes = await fetch(metaUrl);
@@ -78,7 +79,7 @@ app.get('/subtitles/:type/:id.json', async (req, res) => {
     let links = [];
     for (const q of searchQueries) {
       const searchUrl = `${SUBTITLECAT}/index.php?search=${encodeURIComponent(q)}&show=1000`;
-      const subRes = await fetch(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } });
+      const subRes = await fetch(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
       const html = await subRes.text();
 
       const regex = /href=["']([^"']*\/subs\/[^"']+\.html)["']/gi;
@@ -113,15 +114,24 @@ app.get('/translate-sub', async (req, res) => {
   const detailUrl = req.query.detailUrl;
   if (!detailUrl) return res.status(400).send('Missing detailUrl');
 
+  // Проверка дали титлот веќе е преведен и зачуван во кеш (спречува timeout на телефон)
+  if (translationCache.has(detailUrl)) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.send(translationCache.get(detailUrl));
+  }
+
   try {
     const response = await fetch(detailUrl, { 
-      headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36' }, 
+      headers: { 'User-Agent': 'Mozilla/5.0' }, 
       redirect: 'follow' 
     });
     if (!response.ok) throw new Error('Failed to fetch subtitle page');
     
     let subtitleText = await response.text();
     const translatedText = await translateToSerbian(subtitleText);
+
+    // Зачувај го во кеш за следниот пат кога ќе го отвориш на телефон или ТВ
+    translationCache.set(detailUrl, translatedText);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(translatedText);
