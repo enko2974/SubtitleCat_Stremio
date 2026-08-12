@@ -1,5 +1,5 @@
 {
-  "name": "stremio-subtitlecat-serbian",
+  "name": "subtitlecat-serbian-addon",
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
