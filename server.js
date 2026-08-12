@@ -5,9 +5,6 @@ const app = express();
 const PORT = Number(process.env.PORT) || 10000;
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const SUBTITLECAT = 'https://subtitlecat.com';
-
-const translationCache = new Map();
 
 app.disable('x-powered-by');
 
@@ -20,13 +17,13 @@ app.use((req, res, next) => {
 });
 
 app.get('/', (req, res) => {
-  res.type('text').send('SubtitleCat Serbian Latin Addon is active.');
+  res.type('text').send('SubtitleCat Serbian Latin Addon v6 is active.');
 });
 
 app.get('/manifest.json', (req, res) => {
   res.json({
     id: 'org.subtitlecat.serbianlatin.ai',
-    version: '5.0.0',
+    version: '6.0.0',
     name: 'SubtitleCat Serbian (Gemini AI)',
     description: 'Automatic SubtitleCat to Serbian Latin translation via Gemini AI',
     resources: ['subtitles'],
@@ -58,85 +55,52 @@ ${subtitleText}`;
 }
 
 app.get('/subtitles/:type/:id.json', async (req, res) => {
-  try {
-    const { type, id } = req.params;
-    console.log(`REQUEST: ${type} ${id}`);
+  const { type, id } = req.params;
+  console.log(`=== LIVE REQUEST RECEIVED FROM STREMIO: ${type} ${id} ===`);
 
-    const metaUrl = `https://v3-cinemeta.strem.io/meta/${type}/${id}.json`;
-    const metaRes = await fetch(metaUrl);
-    const metaData = await metaRes.json();
-    
-    let searchQueries = [];
-    if (metaData && metaData.meta) {
-      const title = metaData.meta.name;
-      const year = metaData.meta.year ? metaData.meta.year.toString().substring(0, 4) : '';
-      if (title && year) searchQueries.push(`${title} ${year}`);
-      if (title) searchQueries.push(title);
-    }
-    if (searchQueries.length === 0) searchQueries.push(id);
+  const host = req.get('host');
+  const protocol = req.protocol;
 
-    let links = [];
-    for (const q of searchQueries) {
-      const searchUrl = `${SUBTITLECAT}/index.php?search=${encodeURIComponent(q)}&show=1000`;
-      const subRes = await fetch(searchUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      const html = await subRes.text();
+  const directSubUrl = `https://subtitle-cat.com/subs/${id}/en.vtt`;
 
-      const regex = /href=["']([^"']*\/subs\/[^"']+\.html)["']/gi;
-      let match;
-      while ((match = regex.exec(html)) !== null) {
-        const fullUrl = new URL(match[1], SUBTITLECAT).href;
-        if (!links.includes(fullUrl)) links.push(fullUrl);
-        if (links.length >= 5) break;
-      }
-      if (links.length > 0) break;
-    }
-
-    const host = req.get('host');
-    const protocol = req.protocol;
-
-    // Додаваме лажна .srt екстензија на крајот за да го излажеме Android плеерот
-    const subtitles = links.map((detailUrl, index) => ({
-      id: `sub-srp-${index}`,
-      url: `${protocol}://${host}/translate-sub.srt?detailUrl=${encodeURIComponent(detailUrl)}`,
+  const subtitles = [
+    {
+      id: `sub-gemini-serbian-${id}`,
+      url: `${protocol}://${host}/translate-sub.srt?url=${encodeURIComponent(directSubUrl)}`,
       lang: 'srp',
       label: '🇷🇸 Serbian Latin (Gemini AI)'
-    }));
+    }
+  ];
 
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.json({ subtitles });
-  } catch (error) {
-    console.error('SUBTITLES ERROR:', error);
-    res.json({ subtitles: [] });
-  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ subtitles });
 });
 
-// Нова патека која завршува на .srt за целосна компатибилност со Android
 app.get('/translate-sub.srt', async (req, res) => {
-  const detailUrl = req.query.detailUrl;
-  if (!detailUrl) return res.status(400).send('Missing detailUrl');
-
-  if (translationCache.has(detailUrl)) {
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    return res.send(translationCache.get(detailUrl));
-  }
+  const subUrl = req.query.url;
+  if (!subUrl) return res.status(400).send('Missing url');
 
   try {
-    const response = await fetch(detailUrl, { 
-      headers: { 'User-Agent': 'Mozilla/5.0' }, 
+    console.log(`FETCHING SUBTITLE FROM: ${subUrl}`);
+    const response = await fetch(subUrl, { 
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }, 
       redirect: 'follow' 
     });
-    if (!response.ok) throw new Error('Failed to fetch subtitle page');
+    
+    if (!response.ok) {
+      console.log(`SUBTITLE NOT FOUND ON SOURCE (${response.status})`);
+      return res.status(404).send('Subtitle not found');
+    }
     
     let subtitleText = await response.text();
+    console.log('TRANSLATING WITH GEMINI...');
     const translatedText = await translateToSerbian(subtitleText);
-
-    translationCache.set(detailUrl, translatedText);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(translatedText);
   } catch (error) {
     console.error('TRANSLATE ERROR:', error);
-    res.status(500).send('Error translating subtitle');
+    res.status(500).send('Error processing subtitle');
   }
 });
 
