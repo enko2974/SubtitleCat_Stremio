@@ -4,7 +4,7 @@ const { GoogleGenAI } = require('@google/genai');
 const app = express();
 const PORT = Number(process.env.PORT) || 10000;
 
-// Иницијализација на Gemini
+// Иницијализација на Gemini AI
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const SUBTITLECAT = 'https://subtitlecat.com';
 
@@ -18,9 +18,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Почетна страна
+// Почетна страница
 app.get('/', (req, res) => {
-  res.type('text').send('SubtitleCat Serbian Latin Addon with Gemini is running successfully!');
+  res.type('text').send('SubtitleCat Serbian Latin Addon with Gemini is active and running.');
 });
 
 // Stremio Manifest
@@ -36,16 +36,16 @@ app.get('/manifest.json', (req, res) => {
   });
 });
 
-// Функция за преведување со Gemini
-// Подобрена функција за превод и принудна латиница со Gemini
+// Строга функција за превод со Gemini на српска латиница
 async function translateToSerbian(subtitleText) {
   try {
     const prompt = `Ти си професионален преведувач на филмски титлови. 
-Твоја задача е да го земеш следниов текст (SRT или VTT формат на титлови) и целосно да го преведеш или прилагодиш на СРПСКИ ЈАЗИК, со задолжителна СРПСКА ЛАТИНИЦА (експлицитно користи ги буквите č, ć, ž, š, đ).
+Твоја задача е да го преведеш или прилагодиш следниов текст (SRT или VTT формат на титлови) на СРПСКИ ЈАЗИК, користејќи исклучиво СРПСКА ЛАТИНИЦА (со задолжителна употреба на карактерите č, ć, ž, š, đ).
+
 ПРАВИЛА:
-1. Задолжително задржи ги сите временски ознаки (timestamps како 00:01:20,123 --> 00:01:25,456), броевите на редовите и целокупното VTT/SRT форматирање апсолутно непроменето.
+1. Задолжително задржи ги сите временски ознаки (timestamps како 00:01:20,123 --> 00:01:25,456), броевите на редовите и целокупното форматирање апсолутно непроменето.
 2. Преведувај или корегирај го само текстот на дијалозите.
-3. Не додавај никакви воведни зборови или коментари од тебе, врати го само чистиот преведен титл.
+3. Не додавај никакви воведни зборови, коментари или објаснувања, врати го само чистиот преведен титл.
 
 Еве го текстот:
 ${subtitleText}`;
@@ -62,7 +62,7 @@ ${subtitleText}`;
   }
 }
 
-// Пребарување и враќање на линкови до Stremio (Оваа рута решава Cannot GET)
+// Рута за враќање на линкови до титлови во Stremio
 app.get('/subtitles/:type/:id.json', async (req, res) => {
   try {
     const id = req.params.id;
@@ -93,12 +93,12 @@ app.get('/subtitles/:type/:id.json', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({ subtitles });
   } catch (error) {
-    console.error('ERROR:', error);
+    console.error('SUBTITLES ROUTE ERROR:', error);
     res.json({ subtitles: [] });
   }
 });
 
-// Симнување, преведување со Gemini и праќање кон Stremio
+// Рута за симнување, преведување преку Gemini и испорака до Stremio
 app.get('/translate-sub', async (req, res) => {
   const detailUrl = req.query.detailUrl;
   if (!detailUrl) return res.status(400).send('Missing detailUrl');
@@ -113,7 +113,7 @@ app.get('/translate-sub', async (req, res) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(translatedText);
   } catch (error) {
-    console.error('TRANSLATE ERROR:', error);
+    console.error('TRANSLATE ROUTE ERROR:', error);
     res.status(500).send('Error translating subtitle');
   }
 });
