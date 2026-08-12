@@ -7,7 +7,6 @@ const PORT = Number(process.env.PORT) || 10000;
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const SUBTITLECAT = 'https://subtitlecat.com';
 
-// Кеш за веќе преведени титлови за да не чека телефонот повторно
 const translationCache = new Map();
 
 app.disable('x-powered-by');
@@ -27,7 +26,7 @@ app.get('/', (req, res) => {
 app.get('/manifest.json', (req, res) => {
   res.json({
     id: 'org.subtitlecat.serbianlatin.ai',
-    version: '4.1.0',
+    version: '5.0.0',
     name: 'SubtitleCat Serbian (Gemini AI)',
     description: 'Automatic SubtitleCat to Serbian Latin translation via Gemini AI',
     resources: ['subtitles'],
@@ -61,7 +60,7 @@ ${subtitleText}`;
 app.get('/subtitles/:type/:id.json', async (req, res) => {
   try {
     const { type, id } = req.params;
-    console.log(`REQUEST FROM DEVICE: ${type} ${id}`);
+    console.log(`REQUEST: ${type} ${id}`);
 
     const metaUrl = `https://v3-cinemeta.strem.io/meta/${type}/${id}.json`;
     const metaRes = await fetch(metaUrl);
@@ -95,9 +94,10 @@ app.get('/subtitles/:type/:id.json', async (req, res) => {
     const host = req.get('host');
     const protocol = req.protocol;
 
+    // Додаваме лажна .srt екстензија на крајот за да го излажеме Android плеерот
     const subtitles = links.map((detailUrl, index) => ({
       id: `sub-srp-${index}`,
-      url: `${protocol}://${host}/translate-sub?detailUrl=${encodeURIComponent(detailUrl)}`,
+      url: `${protocol}://${host}/translate-sub.srt?detailUrl=${encodeURIComponent(detailUrl)}`,
       lang: 'srp',
       label: '🇷🇸 Serbian Latin (Gemini AI)'
     }));
@@ -110,11 +110,11 @@ app.get('/subtitles/:type/:id.json', async (req, res) => {
   }
 });
 
-app.get('/translate-sub', async (req, res) => {
+// Нова патека која завршува на .srt за целосна компатибилност со Android
+app.get('/translate-sub.srt', async (req, res) => {
   const detailUrl = req.query.detailUrl;
   if (!detailUrl) return res.status(400).send('Missing detailUrl');
 
-  // Проверка дали титлот веќе е преведен и зачуван во кеш (спречува timeout на телефон)
   if (translationCache.has(detailUrl)) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.send(translationCache.get(detailUrl));
@@ -130,7 +130,6 @@ app.get('/translate-sub', async (req, res) => {
     let subtitleText = await response.text();
     const translatedText = await translateToSerbian(subtitleText);
 
-    // Зачувај го во кеш за следниот пат кога ќе го отвориш на телефон или ТВ
     translationCache.set(detailUrl, translatedText);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
